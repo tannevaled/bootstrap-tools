@@ -27,15 +27,17 @@ RUN source /opt/rh/devtoolset-10/enable && gcc --version
 RUN yum install -y -q file texinfo && yum clean all
 
 ARG PATCHELF_VERSION=0.18.0
-RUN case "$(uname -m)" in \
+RUN cd /tmp && \
+    case "$(uname -m)" in \
       x86_64)  PE_ARCH=x86_64 ;; \
       aarch64) PE_ARCH=aarch64 ;; \
       *) echo "unknown arch $(uname -m)" >&2; exit 1 ;; \
     esac && \
     curl -fsSLO "https://github.com/NixOS/patchelf/releases/download/${PATCHELF_VERSION}/patchelf-${PATCHELF_VERSION}-${PE_ARCH}.tar.gz" && \
-    tar -xzf "patchelf-${PATCHELF_VERSION}-${PE_ARCH}.tar.gz" ./bin/patchelf && \
+    mkdir patchelf-extract && cd patchelf-extract && \
+    tar -xzf "/tmp/patchelf-${PATCHELF_VERSION}-${PE_ARCH}.tar.gz" ./bin/patchelf && \
     install -m 755 bin/patchelf /usr/local/bin/patchelf && \
-    rm -rf bin patchelf-${PATCHELF_VERSION}-${PE_ARCH}.tar.gz && \
+    cd /tmp && rm -rf patchelf-extract "patchelf-${PATCHELF_VERSION}-${PE_ARCH}.tar.gz" && \
     patchelf --version
 
 # Allow the gcc / binutils / glibc tarballs to be cached between
