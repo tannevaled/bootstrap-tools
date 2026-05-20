@@ -146,13 +146,23 @@ echo "::group::smoke-test"
 "$PREFIX/bin/gcc" --version | head -1
 "$PREFIX/bin/g++" --version | head -1
 "$PREFIX/bin/ld"  --version | head -1
-"$PREFIX/lib/$LDSO" --version | head -1
+# Don't run "$LDSO --version" — glibc 2.17's ld.so doesn't support it.
+# Just confirm the file exists and is the expected ELF type.
+[ -f "$PREFIX/lib/$LDSO" ] || { echo "FATAL: $PREFIX/lib/$LDSO missing"; exit 1; }
+file "$PREFIX/lib/$LDSO" | head -1
+
 # Compile a trivial C+C++ program with the new toolchain.
 echo "int main(){return 0;}" > /tmp/c.c
-echo "#include <iostream>" > /tmp/cxx.cc
-echo "int main(){std::cout<<\"hi\\n\";return 0;}" >> /tmp/cxx.cc
-"$PREFIX/bin/gcc" -o /tmp/c   /tmp/c.c   && /tmp/c
-"$PREFIX/bin/g++" -o /tmp/cxx /tmp/cxx.cc && /tmp/cxx | grep -q hi
+cat > /tmp/cxx.cc <<'CEOF'
+#include <iostream>
+int main(){std::cout<<"hi\n";return 0;}
+CEOF
+"$PREFIX/bin/gcc" -o /tmp/c   /tmp/c.c
+/tmp/c
+echo "C ok"
+"$PREFIX/bin/g++" -o /tmp/cxx /tmp/cxx.cc
+/tmp/cxx | grep -q hi
+echo "C++ ok"
 echo "::endgroup::"
 
 echo "bootstrap-tools built into $PREFIX"
