@@ -51,8 +51,12 @@ mkdir -p build && cd build
 ../configure \
   --prefix="$PREFIX" \
   --disable-werror --disable-nls \
-  --enable-gold=yes --enable-ld=yes \
+  --enable-ld=yes --disable-gold \
   > /tmp/binutils-configure.log
+# gold is deprecated upstream (Feb 2025); skip it. Also dodges
+# binutils 2.32 vs gcc 10 strictness: gold/errors.h:87 references
+# `std::string` without `#include <string>`, fails to compile on
+# devtoolset-10's gcc 10. We don't need gold anyway.
 make --jobs "$NPROC"
 make install
 echo "::endgroup::"
