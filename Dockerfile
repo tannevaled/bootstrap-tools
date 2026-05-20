@@ -21,6 +21,11 @@ ENV LANG=C.UTF-8
 SHELL ["/bin/bash", "-c"]
 RUN source /opt/rh/devtoolset-10/enable && gcc --version
 
+# patchelf for relocate.sh (RPATH=$ORIGIN rewrites). texinfo for
+# makeinfo (binutils and gcc both require it). file for relocate.sh's
+# ELF detection. Both are usually present but force-install to be sure.
+RUN yum install -y -q patchelf file texinfo && yum clean all
+
 # Allow the gcc / binutils / glibc tarballs to be cached between
 # rebuilds — we copy them in rather than fetching at build time.
 WORKDIR /work
