@@ -86,17 +86,49 @@ echo "::endgroup::"
 # These are glibc 2.17 + libstdc++ etc. from the container, which IS
 # our intended ABI baseline. We don't rebuild them; we ship them.
 echo "::group::copy runtime libs"
+# Detect where the dynamic linker actually lives — manylinux2014's
+# layout differs slightly between arches (x86_64 → /lib64, aarch64 →
+# /lib). Search both, pick whichever exists, don't rely on a fallback
+# OR-chain that interacts badly with `set -e`.
+LDSO_SRC=""
+for d in /lib64 /lib; do
+  if [ -e "$d/$LDSO" ]; then LDSO_SRC="$d/$LDSO"; break; fi
+done
+if [ -z "$LDSO_SRC" ]; then
+  echo "FATAL: $LDSO not found under /lib64 or /lib"
+  ls -la /lib64/ld-linux* /lib/ld-linux* 2>&1 || true
+  exit 65
+fi
+
 mkdir -p "$PREFIX/lib"
-cp -a /lib64/$LDSO "$PREFIX/lib/" 2>/dev/null || cp -a /lib/$LDSO "$PREFIX/lib/"
+cp -a "$LDSO_SRC" "$PREFIX/lib/"
+echo "copied $LDSO_SRC -> $PREFIX/lib/"
+
 for lib in libc libm libpthread libdl librt libutil libcrypt libresolv libnss_dns libnss_files libnss_compat libnsl libanl; do
   for ext in so.6 so.1 so.2; do
-    src=$(ls /lib64/${lib}.${ext} /lib/${lib}.${ext} 2>/dev/null | head -1)
-    [ -n "$src" ] && cp -a "$src" "$PREFIX/lib/" || true
+    for d in /lib64 /lib; do
+      if [ -e "$d/${lib}.${ext}" ]; then
+        cp -a "$d/${lib}.${ext}" "$PREFIX/lib/"
+        echo "  $d/${lib}.${ext}"
+        break
+      fi
+    done
   done
 done
-# C++ runtime from devtoolset / gcc's own install
-cp -a "$PREFIX/lib64"/libstdc++.so* "$PREFIX/lib/" 2>/dev/null || true
-cp -a "$PREFIX/lib64"/libgcc_s.so*  "$PREFIX/lib/" 2>/dev/null || true
+
+# C++ runtime from devtoolset / gcc's own install. After gcc install,
+# these end up at $PREFIX/lib64/ (x86_64) — relocate to $PREFIX/lib/.
+for lib in libstdc++ libgcc_s libatomic libquadmath libgfortran; do
+  for f in "$PREFIX/lib64/${lib}.so"* "$PREFIX/lib/${lib}.so"*; do
+    if [ -e "$f" ]; then
+      base=$(basename "$f")
+      if [ ! -e "$PREFIX/lib/$base" ]; then
+        cp -a "$f" "$PREFIX/lib/"
+        echo "  $f"
+      fi
+    fi
+  done
+done
 echo "::endgroup::"
 
 # --- stage 4: patchelf RPATH=$ORIGIN/../lib on every ELF in bin/ + lib/ ---
