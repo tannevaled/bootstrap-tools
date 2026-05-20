@@ -7,7 +7,10 @@
 #
 # Idempotent — safe to re-run.
 
-set -eu  # NOT pipefail — we have piped finds where partial failure is fine
+echo "relocate.sh: starting (PID=$$)"
+set -x
+set -u  # NO -e — too many false positives across the find/while/case mix;
+        # we exit explicitly when something we care about fails.
 
 PREFIX=${1:?usage: $0 <prefix>}
 PREFIX=$(realpath "$PREFIX")
