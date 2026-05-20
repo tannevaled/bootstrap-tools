@@ -7,8 +7,6 @@
 #
 # Idempotent — safe to re-run.
 
-echo "relocate.sh: starting (PID=$$)"
-set -x
 set -u  # NO -e — too many false positives across the find/while/case mix;
         # we exit explicitly when something we care about fails.
 

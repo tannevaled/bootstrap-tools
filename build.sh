@@ -20,6 +20,11 @@
 
 set -euo pipefail
 
+# Resolve our own script directory to an absolute path early. Later
+# stages `cd` into deep subdirs, so $(dirname "$0") returning `.` would
+# break the relocate.sh invocation in stage 4.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 TRIPLE=${1:?usage: $0 <triple> <prefix>}
 PREFIX=${2:?usage: $0 <triple> <prefix>}
 
@@ -133,15 +138,7 @@ echo "::endgroup::"
 
 # --- stage 4: patchelf RPATH=$ORIGIN/../lib on every ELF in bin/ + lib/ ---
 echo "::group::relocate"
-RELOCATE_SH="$(dirname "$0")/relocate.sh"
-echo "build.sh: PWD=$PWD  \$0=$0  relocate.sh=$RELOCATE_SH"
-ls -la "$RELOCATE_SH" || { echo "FATAL: relocate.sh not found at $RELOCATE_SH"; exit 1; }
-which bash; bash --version | head -1
-echo "--- invoking ---"
-bash -x "$RELOCATE_SH" "$PREFIX"
-RELOCATE_RC=$?
-echo "relocate.sh exited with rc=$RELOCATE_RC"
-[ "$RELOCATE_RC" = 0 ] || exit "$RELOCATE_RC"
+"$SCRIPT_DIR/relocate.sh" "$PREFIX"
 echo "::endgroup::"
 
 # --- stage 5: smoke-test ---
