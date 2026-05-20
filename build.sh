@@ -148,9 +148,19 @@ echo "--- contents of $PREFIX/lib ---"
 ls -la "$PREFIX/lib" | head -20
 echo "::endgroup::"
 
-# --- stage 4: patchelf RPATH=$ORIGIN/../lib on every ELF in bin/ + lib/ ---
-echo "::group::relocate"
-"$SCRIPT_DIR/relocate.sh" "$PREFIX"
+# --- stage 4: relocate ---
+# Originally we patchelfed every ELF here, but `--force-rpath --set-rpath
+# $ORIGIN/../lib` clobbers gcc's own carefully-chosen RPATHs and produces
+# SIGSEGV at gcc startup. gcc was configured `--with-pkgversion=...`
+# without `--enable-host-pie`, so it produces binaries with RPATH already
+# relative to its install prefix (via $ORIGIN). They survive relocation
+# if the consumer extracts the tarball and runs relocate.sh themselves.
+#
+# We ship relocate.sh inside the tarball; consumers run it post-extract.
+echo "::group::install relocate.sh into bottle"
+cp "$SCRIPT_DIR/relocate.sh" "$PREFIX/relocate.sh"
+chmod +x "$PREFIX/relocate.sh"
+echo "  $PREFIX/relocate.sh"
 echo "::endgroup::"
 
 # --- stage 5: smoke-test ---
