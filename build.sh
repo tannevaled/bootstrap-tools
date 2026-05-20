@@ -106,14 +106,19 @@ if [ -z "$LDSO_SRC" ]; then
 fi
 
 mkdir -p "$PREFIX/lib"
-cp -a "$LDSO_SRC" "$PREFIX/lib/"
-echo "copied $LDSO_SRC -> $PREFIX/lib/"
+# IMPORTANT: cp -L (dereference) for the glibc files — they're often
+# symlinks pointing back into /lib64 by absolute path, which won't
+# survive extraction onto a consumer's machine. cp -L resolves to the
+# real file. The SONAME embedded in the file is what consumers use to
+# find it, so we don't need to preserve the original filename chain.
+cp -L "$LDSO_SRC" "$PREFIX/lib/$LDSO"
+echo "copied $LDSO_SRC -> $PREFIX/lib/$LDSO (dereferenced)"
 
 for lib in libc libm libpthread libdl librt libutil libcrypt libresolv libnss_dns libnss_files libnss_compat libnsl libanl; do
   for ext in so.6 so.1 so.2; do
     for d in /lib64 /lib; do
       if [ -e "$d/${lib}.${ext}" ]; then
-        cp -a "$d/${lib}.${ext}" "$PREFIX/lib/"
+        cp -L "$d/${lib}.${ext}" "$PREFIX/lib/${lib}.${ext}"
         echo "  $d/${lib}.${ext}"
         break
       fi
@@ -122,18 +127,25 @@ for lib in libc libm libpthread libdl librt libutil libcrypt libresolv libnss_dn
 done
 
 # C++ runtime from devtoolset / gcc's own install. After gcc install,
-# these end up at $PREFIX/lib64/ (x86_64) — relocate to $PREFIX/lib/.
+# these end up at $PREFIX/lib64/ (x86_64 multilib convention) — copy
+# (dereferencing) to $PREFIX/lib/ so consumers find them via the
+# canonical lib/ path. The originals stay in lib64/ — gcc's own
+# internals refer to them there.
 for lib in libstdc++ libgcc_s libatomic libquadmath libgfortran; do
   for f in "$PREFIX/lib64/${lib}.so"* "$PREFIX/lib/${lib}.so"*; do
-    if [ -e "$f" ]; then
+    if [ -e "$f" ] && [ ! -L "$f" ]; then
       base=$(basename "$f")
       if [ ! -e "$PREFIX/lib/$base" ]; then
-        cp -a "$f" "$PREFIX/lib/"
+        cp -L "$f" "$PREFIX/lib/$base"
         echo "  $f"
       fi
     fi
   done
 done
+
+# Sanity: confirm ld-linux actually lives where we said.
+echo "--- contents of $PREFIX/lib ---"
+ls -la "$PREFIX/lib" | head -20
 echo "::endgroup::"
 
 # --- stage 4: patchelf RPATH=$ORIGIN/../lib on every ELF in bin/ + lib/ ---
